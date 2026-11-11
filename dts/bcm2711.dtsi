@@ -1,0 +1,102 @@
+// SPDX-License-Identifier: BSD-2-Clause-Patent
+// Broadcom BCM2711 (Raspberry Pi 4 family) hardware description for UniXNU.
+//
+// Addresses are ARM physical addresses in the low-peripheral mode the Raspberry Pi 4 firmware selects by default
+// (VideoCore bus 0x7e000000 -> ARM 0xfe000000, ARM local peripherals 0x40000000 -> 0xff800000). They were read
+// from the live Linux device tree of a Raspberry Pi 4 Model B Rev 1.5 (/proc/device-tree) and match upstream Linux
+// arch/arm/boot/dts/broadcom/bcm2711.dtsi.
+//
+// Nodes with unixnu,adt-name are exported to the Apple device tree under /arm-io. Nodes without a driver yet are
+// kept disabled so that the generator skips them; they record the resources the next drivers need.
+
+/ {
+    compatible = "brcm,bcm2711";
+    #address-cells = <2>;
+    #size-cells = <2>;
+    interrupt-parent = <&gic>;
+
+    cpus {
+        #address-cells = <2>;
+        #size-cells = <0>;
+        // CNTFRQ_EL0 of the generic timer: 54 MHz crystal (Linux: "arch_timer: cp15 timer(s) running at 54.00MHz").
+        timebase-frequency = <54000000>;
+        cpu0: cpu@0 { device_type = "cpu"; compatible = "arm,cortex-a72"; reg = <0 0>; };
+        cpu1: cpu@1 { device_type = "cpu"; compatible = "arm,cortex-a72"; reg = <0 1>; };
+        cpu2: cpu@2 { device_type = "cpu"; compatible = "arm,cortex-a72"; reg = <0 2>; };
+        cpu3: cpu@3 { device_type = "cpu"; compatible = "arm,cortex-a72"; reg = <0 3>; };
+    };
+
+    // Without UEFI the Raspberry Pi firmware starts secondary cores through a spin table. The Raspberry Pi 4 UEFI
+    // firmware (github.com/pftf/RPi4) carries Trusted Firmware-A, which provides PSCI over SMC; ArmCpu needs that.
+    psci { compatible = "arm,psci-1.0"; method = "smc"; };
+
+    soc {
+        compatible = "simple-bus";
+        #address-cells = <2>;
+        #size-cells = <2>;
+        ranges;
+
+        // GIC-400 (GICv2): GICD, GICC, GICH, GICV. ArmCpu selects its GICv2 path from "arm,gic-400" when it is built
+        // with ARMCPU_GICV2=1 (CONFIG_XNU_ARMCPU_GICV2=y).
+        gic: interrupt-controller@ff841000 {
+            compatible = "arm,gic-400";
+            unixnu,adt-name = "intc";
+            reg = <0 0xff841000 0 0x1000>, <0 0xff842000 0 0x2000>,
+                  <0 0xff844000 0 0x2000>, <0 0xff846000 0 0x2000>;
+            #interrupt-cells = <3>;
+            #address-cells = <0>;
+            interrupt-controller;
+        };
+
+        // XNU's own Raspberry Pi 3 serial driver (pexpert/arm/pe_serial.c, PI3_UART, compiled into the BCM2837 kernel
+        // configuration UniXNU builds) looks up the ADT nodes named "gpio" and "aux", muxes GPIO 14/15 to ALT5 and
+        // drives the mini UART. The BCM2711 keeps the BCM2837 register layout of both blocks.
+        gpio: gpio@fe200000 {
+            compatible = "brcm,bcm2711-gpio";
+            unixnu,adt-name = "gpio";
+            reg = <0 0xfe200000 0 0x100>;
+        };
+
+        aux: aux@fe215000 {
+            compatible = "brcm,bcm2835-aux";
+            unixnu,adt-name = "aux";
+            reg = <0 0xfe215000 0 0x100>;
+        };
+
+        // PL011 UART0: the UEFI firmware's console on GPIO 14/15. XNU has no PL011 driver for this platform; once
+        // XNU's mini UART takes the pins over, its output appears on the same wires.
+        uart0: serial@fe201000 {
+            compatible = "arm,pl011", "arm,primecell";
+            reg = <0 0xfe201000 0 0x200>;
+            interrupts = <0 121 4>;
+            status = "disabled";
+        };
+
+        // EMMC2 (SD card slot), an SDHCI controller. Its DMA reaches only the low 3 GiB (Linux emmc2bus dma-ranges).
+        // Needs a native XNU block driver: the next milestone of the Raspberry Pi 4 port.
+        emmc2: mmc@fe340000 {
+            compatible = "brcm,bcm2711-emmc2";
+            unixnu,adt-name = "emmc2";
+            reg = <0 0xfe340000 0 0x100>;
+            interrupts = <0 126 4>;
+            status = "disabled";
+        };
+
+        // PCIe root complex: the VL805 USB 3 controller (all four USB-A ports) sits behind it.
+        pcie0: pcie@fd500000 {
+            compatible = "brcm,bcm2711-pcie";
+            unixnu,adt-name = "pcie";
+            reg = <0 0xfd500000 0 0x9310>;
+            interrupts = <0 148 4>, <0 148 4>;
+            interrupt-names = "pcie", "msi";
+            status = "disabled";
+        };
+
+        // Watchdog / power management (PM_RSTC, PM_WDOG): reset without the firmware.
+        watchdog: watchdog@fe100000 {
+            compatible = "brcm,bcm2711-pm", "brcm,bcm2835-pm-wdt";
+            reg = <0 0xfe100000 0 0x114>;
+            status = "disabled";
+        };
+    };
+};

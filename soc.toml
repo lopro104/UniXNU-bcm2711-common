@@ -1,0 +1,10 @@
+schema_version = 2
+
+[soc]
+name = "bcm2711"
+description = "Broadcom BCM2711 (Raspberry Pi 4 Model B, Raspberry Pi 400, Compute Module 4)"
+# Hardware addresses: upstream Linux arch/arm/boot/dts/broadcom/bcm2711.dtsi, checked against a live Raspberry Pi 4.
+source_repository = "https://github.com/raspberrypi/linux"
+
+[components]
+include = ["ArmCpu", "ArmDTPlatform"]
