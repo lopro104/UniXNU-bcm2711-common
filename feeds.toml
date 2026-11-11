@@ -1,7 +1,0 @@
-# ArmCpu with the GICv2 (GIC-400) path, written for the MT8167 port (UniXNU-a04br3) and selected with
-# ARMCPU_GICV2=1. The BCM2711 has the same GIC-400. Drop this override once the GICv2 path is in UniXNU/ArmCpu.
-[[source]]
-name = "ArmCpu"
-kind = "driver"
-git = "https://github.com/mouseos/ArmCpu"
-commit = "45cb6dae48a7dfc74beb6ac5999db8f6ba18218a"
