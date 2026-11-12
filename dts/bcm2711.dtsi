@@ -73,12 +73,14 @@
         };
 
         // EMMC2 (SD card slot), an SDHCI controller. Its DMA reaches only the low 3 GiB (Linux emmc2bus dma-ranges).
-        // Rpi4Emmc2 (UniXNU-rpi4 package/Emmc2) drives it without DMA and without its interrupt.
+        // Rpi4Emmc2 (UniXNU-rpi4 package/Emmc2) drives it without DMA and without its interrupt (SPI 126). The node
+        // carries no "interrupts": XNU maps the interrupts of every ADT node at registry setup and panics in
+        // IODTGetICellCounts on this tree's interrupt parent (seen on the Pi, 2026-11-12). Add it back with an ADT
+        // interrupt controller description once a driver uses interrupts.
         emmc2: mmc@fe340000 {
             compatible = "brcm,bcm2711-emmc2";
             unixnu,adt-name = "emmc2";
             reg = <0 0xfe340000 0 0x100>;
-            interrupts = <0 126 4>;
         };
 
         // PCIe root complex: the VL805 USB 3 controller (all four USB-A ports) sits behind it.
